@@ -10,8 +10,6 @@ const Groq            = require("groq-sdk");
 const { HfInference } = require("@huggingface/inference");
 let franc;
 (async () => {
-    // franc@5 is CJS-compatible; franc@6+ is ESM-only
-    // If somehow franc@6 is installed, this catches it gracefully
     try {
         franc = require("franc").franc;
         if (typeof franc !== "function") throw new Error("not a function");
@@ -27,10 +25,6 @@ const Database = require("better-sqlite3");
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
-
-// ============================================================
-// 🛡️  ENV VALIDATION
-// ============================================================
 const REQUIRED_KEYS = {
     GROQ_API_KEY      : process.env.GROQ_API_KEY,
     HUGGINGFACE_TOKEN : process.env.HUGGINGFACE_TOKEN,
@@ -44,9 +38,7 @@ if (missing.length) {
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const hf   = new HfInference(process.env.HUGGINGFACE_TOKEN);
 
-// ============================================================
 // 🗄️  DATABASE SETUP
-// ============================================================
 const DB_PATH = path.join(__dirname, "janvaani.db");
 const db      = new Database(DB_PATH);
 
@@ -181,9 +173,7 @@ const insertWord = db.prepare(`
     VALUES (@ticket_id, @word, @matched_lang, @match_type, @score)
 `);
 
-// ============================================================
-// 🛠️  UTILITIES
-// ============================================================
+//  UTILITIES
 function safeJSON(raw = "") {
     try { return JSON.parse(raw.replace(/```json|```/gi, "").trim()); }
     catch { return {}; }
@@ -208,10 +198,7 @@ function withTimeout(promise, ms = 8000, label = "") {
         ),
     ]);
 }
-
-// ============================================================
-// 🔤  DEEP WORD-LEVEL LANGUAGE DETECTION ENGINE
-// ============================================================
+//  DEEP WORD-LEVEL LANGUAGE DETECTION ENGINE
 
 // ── A. UNICODE RANGE TABLE ─────────────────────────────────────
 const UNICODE_RANGES = [
@@ -587,9 +574,7 @@ const PHONETIC_HEURISTICS = {
     },
 };
 
-// ============================================================
-// 🧬  WORD-LEVEL ANALYSIS ENGINE — L5
-// ============================================================
+//  WORD-LEVEL ANALYSIS ENGINE — L5
 function analyzeWordsDeep(text) {
     const results = {
         wordMatches    : [],
@@ -718,9 +703,7 @@ function detectUnicode(text) {
     return { language: sorted[0][0], confidence: 100, method: "L1-unicode", weight: 10 };
 }
 
-// ============================================================
-// 📊  L3 — N-GRAM SIGNATURES
-// ============================================================
+//  L3 — N-GRAM SIGNATURES
 const NGRAM_SIGS = {
     Telugu  : ["tundi","undi ","ndi ","indi ","meru ","ledu ","andi ","garu ","vadu ","chey"],
     Hindi   : ["nahi ","karo ","mein ","bijli","karke","raha ","rahi ","wala ","hain ","paani"],
@@ -748,9 +731,7 @@ function detectNgram(text) {
     return { language: lang, confidence: Math.min(88, 38 + hits * 10), method: "L3-ngram", weight: 3 };
 }
 
-// ============================================================
-// 📈  L4 — FRANC STATISTICAL
-// ============================================================
+//L4 — FRANC STATISTICAL
 const FRANC_MAP = {
     hin: "Hindi",  tel: "Telugu",  tam: "Tamil",  kan: "Kannada",
     mal: "Malayalam", ben: "Bengali", guj: "Gujarati", pan: "Punjabi",
@@ -770,9 +751,7 @@ function detectFranc(text) {
     } catch { return null; }
 }
 
-// ============================================================
-// 🤖  L6-L8 — GROQ AI MODELS
-// ============================================================
+// L6-L8 — GROQ AI MODELS
 const GROQ_MODELS = [
     { id: "meta-llama/llama-4-scout-17b-16e-instruct", label: "L6-groq-llama4-scout", weight: 5 },
     { id: "llama-3.3-70b-versatile",                   label: "L7-groq-llama3.3-70b", weight: 5 },
@@ -838,9 +817,7 @@ async function detectGroqModel(modelId, label, weight, text, delayMs = 0) {
     return null;
 }
 
-// ============================================================
-// 🤗  L11 — HUGGINGFACE XLM-RoBERTa
-// ============================================================
+//  L11 — HUGGINGFACE XLM-RoBERTa
 const HF_LANG_MAP = {
     hi:"Hindi",te:"Telugu",ta:"Tamil",kn:"Kannada",ml:"Malayalam",
     bn:"Bengali",gu:"Gujarati",pa:"Punjabi",or:"Odia",ur:"Urdu",mr:"Marathi",
@@ -870,9 +847,7 @@ async function detectHuggingFace(text) {
     return null;
 }
 
-// ============================================================
-// 🧠  MASTER LANGUAGE DETECTOR
-// ============================================================
+//MASTER LANGUAGE DETECTOR
 async function detectLanguage(text) {
     console.log(`\n🔍 Language detection — all 8 layers firing...`);
     const votes = [];
@@ -944,9 +919,7 @@ async function detectLanguage(text) {
     };
 }
 
-// ============================================================
-// 🏢  DEPARTMENT REGISTRY
-// ============================================================
+//  DEPARTMENT REGISTRY
 const DEPARTMENT_REGISTRY = {
     "Water Supply & Sanitation" : {
         officialName    : "Department of Water Supply & Sanitation",
@@ -1030,9 +1003,7 @@ const DEPARTMENT_REGISTRY = {
     },
 };
 
-// ============================================================
-// 🗺️  REVERSE GEOCODE
-// ============================================================
+//  REVERSE GEOCODE
 async function reverseGeocode(lat, lon) {
     return new Promise((resolve) => {
         const options = {
@@ -1058,10 +1029,7 @@ async function reverseGeocode(lat, lon) {
         }).on("error", () => resolve({ fullAddress: "Network Error", city: "", district: "", state: "", pincode: "" }));
     });
 }
-
-// ============================================================
-// 🧠  SYNTHESIS AGENT
-// ============================================================
+// SYNTHESIS AGENT
 async function operatorSynthesisAgent({ text, langResult, geoData, citizenName, citizenPhone, preDept }) {
     const deptList = Object.keys(DEPARTMENT_REGISTRY).join(", ");
     const locStr   = geoData
@@ -1121,9 +1089,7 @@ Return JSON:
     return JSON.parse(res.choices[0].message.content);
 }
 
-// ============================================================
-// 🚀  POST /analyze — FILE GRIEVANCE
-// ============================================================
+// POST /analyze — FILE GRIEVANCE
 app.post("/analyze", async (req, res) => {
     const { text, location, citizenName, citizenPhone, department: preDept, evidence } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: "No grievance text provided." });
@@ -1280,9 +1246,7 @@ app.post("/analyze", async (req, res) => {
     }
 });
 
-// ============================================================
-// 📋  GET /tickets — List with rich filters + pagination
-// ============================================================
+//  GET /tickets — List with rich filters + pagination
 app.get("/tickets", (req, res) => {
     try {
         const {
@@ -1336,9 +1300,7 @@ app.get("/tickets", (req, res) => {
     }
 });
 
-// ============================================================
-// 🔍  GET /tickets/:id — Full ticket detail
-// ============================================================
+//  GET /tickets/:id — Full ticket detail
 app.get("/tickets/:id", (req, res) => {
     try {
         const ticket = db.prepare("SELECT * FROM tickets WHERE ticket_id = ?").get(req.params.id.toUpperCase());
@@ -1410,9 +1372,7 @@ app.patch("/tickets/:id/status", (req, res) => {
     }
 });
 
-// ============================================================
-// 📝  POST /tickets/:id/notes
-// ============================================================
+//  POST /tickets/:id/notes
 app.post("/tickets/:id/notes", (req, res) => {
     const { id } = req.params;
     const { note, updated_by, is_public = false } = req.body;
@@ -1437,9 +1397,7 @@ app.post("/tickets/:id/notes", (req, res) => {
     }
 });
 
-// ============================================================
-// 📊  GET /stats
-// ============================================================
+//  GET /stats
 app.get("/stats", (req, res) => {
     try {
         const total        = db.prepare("SELECT COUNT(*) as c FROM tickets").get().c;
@@ -1478,10 +1436,7 @@ app.get("/stats", (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ============================================================
-// 🔬  GET /tickets/:id/word-analysis
-// ============================================================
+//  GET /tickets/:id/word-analysis
 app.get("/tickets/:id/word-analysis", (req, res) => {
     try {
         const ticket = db.prepare(
@@ -1518,10 +1473,7 @@ app.get("/tickets/:id/word-analysis", (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ============================================================
-// 🔬  POST /detect-language — Standalone test endpoint
-// ============================================================
+//  POST /detect-language — Standalone test endpoint
 app.post("/detect-language", async (req, res) => {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: "text is required" });
@@ -1552,10 +1504,7 @@ app.post("/detect-language", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ============================================================
-// 📊  GET /developer/dashboard
-// ============================================================
+//  GET /developer/dashboard
 app.get("/developer/dashboard", (req, res) => {
     try {
         const tickets = db.prepare(`
@@ -1585,10 +1534,7 @@ app.get("/developer/dashboard", (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ============================================================
-// 🗑️  DELETE /tickets/:id — Soft delete
-// ============================================================
+// DELETE /tickets/:id — Soft delete
 app.delete("/tickets/:id", (req, res) => {
     const { reason, deleted_by } = req.body || {};
     const id = req.params.id.toUpperCase();
@@ -1613,10 +1559,7 @@ app.delete("/tickets/:id", (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ============================================================
-// 🏥  GET /health
-// ============================================================
+//   GET /health
 app.get("/health", (req, res) => {
     const dbStats = db.prepare("SELECT COUNT(*) as total FROM tickets").get();
     const dbSize  = (() => { try { return require("fs").statSync(DB_PATH).size; } catch { return 0; } })();
@@ -1633,15 +1576,13 @@ app.get("/health", (req, res) => {
     });
 });
 
-// ============================================================
-// 🚦  START SERVER
-// ============================================================
+//  START SERVER
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, "127.0.0.1", () => {
     const count = db.prepare("SELECT COUNT(*) as c FROM tickets").get().c;
     console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
-║         🇮🇳  JANVAANI OPERATOR ENGINE  v11.0  🇮🇳               ║
+║         🇮🇳  JANVAANI OPERATOR ENGINE  🇮🇳                         ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  URL      : http://127.0.0.1:${PORT}                               ║
 ║  Database : janvaani.db  (${String(count).padEnd(6)} tickets stored)          ║
@@ -1659,18 +1600,5 @@ app.listen(PORT, "127.0.0.1", () => {
 ║  L8  Groq Llama-3.1-8B                                           ║
 ║  L11 HuggingFace XLM-RoBERTa                                     ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  ENDPOINTS:                                                      ║
-║  POST  /analyze                  → File grievance                ║
-║  GET   /tickets                  → List (filters + pagination)   ║
-║  GET   /tickets/:id              → Full ticket + history         ║
-║  PATCH /tickets/:id/status       → Update status (developer)     ║
-║  POST  /tickets/:id/notes        → Add internal note             ║
-║  DELETE /tickets/:id             → Soft-close ticket             ║
-║  GET   /tickets/:id/word-analysis → Word detection breakdown     ║
-║  POST  /detect-language          → Test language detection       ║
-║  GET   /developer/dashboard      → Dev tools + all tickets       ║
-║  GET   /stats                    → Dashboard stats               ║
-║  GET   /health                   → Health + capabilities check   ║
-╚══════════════════════════════════════════════════════════════════╝
     `);
 });

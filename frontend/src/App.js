@@ -702,30 +702,58 @@ export default function App() {
     const id = setInterval(() => setTitleIdx(p => (p + 1) % JANVAANI_TITLES.length), 3500);
     return () => clearInterval(id);
   }, []);
-
   // ── Location ────────────────────────────────
-  const handleGetLocation = () => {
-    if (!("geolocation" in navigator)) { alert("GPS not supported."); return; }
-    setIsFetchingLoc(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude.toFixed(5);
-        const lng = pos.coords.longitude.toFixed(5);
-        setLocation(`${lat},${lng}`);
-        try {
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, { headers: { "User-Agent": "JanVaani_v8" } });
-          const d = await r.json();
-          const a = d.address || {};
-          const city  = a.city || a.town || a.village || a.county || a.state_district || a.state || `${lat},${lng}`;
-          const state = a.state ? `, ${a.state}` : "";
-          setLocationLabel(`${city}${state}`);
-        } catch { setLocationLabel(`${lat}, ${lng}`); }
-        setIsFetchingLoc(false);
-      },
-      () => { alert("Allow location permissions."); setIsFetchingLoc(false); },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
-  };
+  const handleGetLocation = () => {
+    if (!("geolocation" in navigator)) { 
+      alert("Location is not supported by your browser."); 
+      return; 
+    }
+
+    setIsFetchingLoc(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude.toFixed(5);
+        const lng = pos.coords.longitude.toFixed(5);
+        setLocation(`${lat},${lng}`);
+        
+        try {
+          // Added accept-language to ensure consistent API responses
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`, { 
+            headers: { "User-Agent": "JanVaani_App_v1" } 
+          });
+          
+          if (!r.ok) throw new Error("Reverse geocoding failed");
+          
+          const d = await r.json();
+          const a = d.address || {};
+          const city  = a.city || a.town || a.village || a.county || a.state_district || a.state || `${lat},${lng}`;
+          const state = a.state ? `, ${a.state}` : "";
+          setLocationLabel(`${city}${state}`);
+        } catch (error) { 
+          console.error("Location name fetch error:", error);
+          setLocationLabel(`${lat}, ${lng}`); // Fallback to raw coordinates
+        } finally {
+          setIsFetchingLoc(false); // Guarantee the loading spinner stops
+        }
+      },
+      (error) => { 
+        console.error("Geolocation Error:", error);
+        let errorMsg = "Could not fetch location.";
+        if (error.code === 1) errorMsg = "Location permission denied. Please allow it in your browser URL bar.";
+        if (error.code === 2) errorMsg = "Position unavailable. Ensure your OS location services are turned on.";
+        if (error.code === 3) errorMsg = "Location request timed out.";
+        
+        alert(errorMsg); 
+        setIsFetchingLoc(false); 
+      },
+      { 
+        enableHighAccuracy: false, // Changed to false: Prevents infinite hanging on desktops/laptops
+        timeout: 15000,            // Increased timeout to 15 seconds
+        maximumAge: 0 
+      }
+    );
+  };
 
   // ── Voice Recognition (improved) ─────────────
   const stopListening = useCallback(() => {
