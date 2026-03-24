@@ -1,0 +1,32 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@google/genai": "^1.46.0",
+    "@google/generative-ai": "^0.24.1",
+    "@huggingface/inference": "^4.13.15",
+    "@langchain/community": "^1.1.24",
+    "@langchain/core": "^1.1.35",
+    "axios": "^1.13.6",
+    "better-sqlite3": "^12.8.0",
+    "bhashini-translation": "^1.0.4",
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "franc": "^5.0.0",
+    "groq-sdk": "^1.1.1",
+    "langchain": "^1.2.36",
+    "natural": "^8.1.1"
+  }
+}
