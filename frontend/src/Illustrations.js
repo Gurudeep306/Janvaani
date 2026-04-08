@@ -222,10 +222,9 @@ export const ParticleField = ({ style = {} }) => (
   <svg viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", ...style }}>
     {/* Connection lines */}
     {[
-      [100, 150, 250, 200], [250, 200, 400, 120], [400, 120, 550, 250],
-      [550, 250, 700, 180], [700, 180, 850, 300], [850, 300, 1000, 200],
-      [1000, 200, 1100, 350], [200, 400, 350, 320], [500, 450, 650, 380],
-      [800, 420, 950, 350],
+      [100, 150, 250, 200], [400, 120, 550, 250],
+      [700, 180, 850, 300], [1000, 200, 1100, 350],
+      [200, 400, 350, 320], [500, 450, 650, 380],
     ].map(([x1, y1, x2, y2], i) => (
       <line key={`l-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
         stroke="rgba(56,189,248,0.06)" strokeWidth="0.5" />
@@ -233,24 +232,15 @@ export const ParticleField = ({ style = {} }) => (
     {/* Floating particles */}
     {[
       { cx: 100, cy: 150, r: 2.5, dur: "8s", delay: "0s" },
-      { cx: 250, cy: 200, r: 1.5, dur: "10s", delay: "1s" },
       { cx: 400, cy: 120, r: 3, dur: "7s", delay: "0.5s" },
-      { cx: 550, cy: 250, r: 2, dur: "9s", delay: "2s" },
       { cx: 700, cy: 180, r: 2.5, dur: "11s", delay: "1.5s" },
-      { cx: 850, cy: 300, r: 1.5, dur: "8s", delay: "3s" },
       { cx: 1000, cy: 200, r: 3, dur: "10s", delay: "0.8s" },
-      { cx: 1100, cy: 350, r: 2, dur: "9s", delay: "2.5s" },
       { cx: 200, cy: 400, r: 2, dur: "7s", delay: "1.2s" },
-      { cx: 350, cy: 320, r: 1.5, dur: "12s", delay: "0.3s" },
       { cx: 500, cy: 450, r: 2.5, dur: "8s", delay: "1.8s" },
-      { cx: 650, cy: 380, r: 2, dur: "10s", delay: "0.7s" },
       { cx: 800, cy: 420, r: 3, dur: "9s", delay: "2.2s" },
-      { cx: 950, cy: 350, r: 1.5, dur: "11s", delay: "1.1s" },
-      { cx: 150, cy: 80, r: 2, dur: "8s", delay: "0s" },
       { cx: 600, cy: 90, r: 1.5, dur: "9s", delay: "0.5s" },
-      { cx: 900, cy: 100, r: 2, dur: "7s", delay: "1s" },
       { cx: 300, cy: 500, r: 2.5, dur: "10s", delay: "1.5s" },
-      { cx: 750, cy: 500, r: 2, dur: "8s", delay: "2s" },
+      { cx: 950, cy: 350, r: 1.5, dur: "11s", delay: "1.1s" },
     ].map((p, i) => (
       <circle key={`p-${i}`} cx={p.cx} cy={p.cy} r={p.r}
         fill="url(#particleGrad)" opacity="0.4">
@@ -338,16 +328,14 @@ export const DeptIconsField = ({ style = {} }) => {
   ];
   // Connection paths between departments (grievance routing)
   const connections = [
-    [0,1],[1,2],[2,3],[3,4],[0,5],[1,6],[2,7],[3,8],
-    [5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[9,10],[10,11],
-    [1,5],[2,6],[3,7],[4,8],[0,9],[6,2]
+    [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[9,10],[10,11]
   ];
   return (
     <svg viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg"
       style={{ position:"fixed", inset:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:4, ...style }}
       preserveAspectRatio="xMidYMid slice">
       <defs>
-        <filter id="deptGlow"><feGaussianBlur stdDeviation="3" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="deptGlow"><feGaussianBlur stdDeviation="2" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         {depts.map((d, i) => (
           <radialGradient key={`dg${i}`} id={`dg${i}`}>
             <stop offset="0%" stopColor={d.color} stopOpacity="0.25"/>
@@ -378,16 +366,10 @@ export const DeptIconsField = ({ style = {} }) => {
       {depts.map((d, i) => (
         <g key={`d${i}`}>
           {/* Ambient glow circle */}
-          <circle cx={d.x} cy={d.y} r={d.r * 2.5} fill={`url(#dg${i})`}>
-            <animate attributeName="r" values={`${d.r*2.2};${d.r*3};${d.r*2.2}`}
-              dur={`${6 + i}s`} repeatCount="indefinite"/>
-          </circle>
+          <circle cx={d.x} cy={d.y} r={d.r * 2.5} fill={`url(#dg${i})`} />
           {/* Node ring */}
           <circle cx={d.x} cy={d.y} r={d.r} fill="none"
-            stroke={d.color} strokeWidth="0.8" opacity="0.25">
-            <animate attributeName="opacity" values="0.15;0.35;0.15"
-              dur={`${5+i}s`} repeatCount="indefinite"/>
-          </circle>
+            stroke={d.color} strokeWidth="0.8" opacity="0.25" />
           {/* Inner filled circle */}
           <circle cx={d.x} cy={d.y} r={d.r * 0.65} fill={d.color} opacity="0.06"/>
           {/* Icon */}
@@ -407,11 +389,8 @@ export const DeptIconsField = ({ style = {} }) => {
       {/* Floating grievance documents moving upward */}
       {[
         {x: 160, delay: "0s", dur: "18s"},
-        {x: 440, delay: "4s", dur: "22s"},
         {x: 720, delay: "8s", dur: "20s"},
         {x: 980, delay: "2s", dur: "24s"},
-        {x: 300, delay: "10s", dur: "19s"},
-        {x: 840, delay: "6s", dur: "21s"},
       ].map((doc, i) => (
         <g key={`doc${i}`} opacity="0">
           <animate attributeName="opacity" values="0;0.12;0.12;0"
