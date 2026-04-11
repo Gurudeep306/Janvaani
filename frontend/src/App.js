@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import {
   FileText, Mic, Search, MapPin, Paperclip, ChevronDown, ChevronUp,
   ArrowLeft, Send, CheckCircle2, AlertTriangle, Shield,
@@ -302,8 +302,25 @@ const fetchWithTimeout = async (resource, options = {}, timeoutMs = 20000) => {
     clearTimeout(timer);
   }
 };
+const StaticBackground = memo(function StaticBackground() {
+  return (
+    <>
+      <div className="bg-layer bg-base" />
+      <div className="bg-layer bg-triband" />
+      <div className="bg-aurora" />
+      <div className="bg-orb bg-orb-1" />
+      <div className="bg-orb bg-orb-2" />
+      <div className="bg-orb bg-orb-3" />
+      <div className="bg-layer bg-grid" />
+      <div className="bg-layer bg-depth" />
+      <div className="bg-vignette" />
+      <div className="bg-tribot" />
+    </>
+  );
+});
 export default function App() {
   const langPickerRef   = useRef(null);
+  const deptPickerRef   = useRef(null);
   const recognitionRef  = useRef(null);
   const finalTranscript = useRef("");
   const isListeningRef  = useRef(false);
@@ -316,6 +333,7 @@ export default function App() {
   const [uiLang,         setUiLang]         = useState("English");
   const [titleIdx,       setTitleIdx]       = useState(0);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [isDeptOpen,     setIsDeptOpen]     = useState(false);
   const [citizenStatement, setCitizenStatement] = useState("");
   const [citizenName,      setCitizenName]      = useState("");
   const [citizenPhone,     setCitizenPhone]     = useState("");
@@ -350,6 +368,14 @@ export default function App() {
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.removeEventListener("mousedown", closeOnOutsideClick); document.removeEventListener("keydown", closeOnEscape); };
   }, [showLangPicker]);
+  useEffect(() => {
+    if (!isDeptOpen) return;
+    const closeOnOutsideClick = (e) => { if (deptPickerRef.current && !deptPickerRef.current.contains(e.target)) setIsDeptOpen(false); };
+    const closeOnEscape = (e) => { if (e.key === "Escape") setIsDeptOpen(false); };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("mousedown", closeOnOutsideClick); document.removeEventListener("keydown", closeOnEscape); };
+  }, [isDeptOpen]);
   const handleGetLocation = () => {
     if (!("geolocation" in navigator)) { alert("Location is not supported by your browser."); return; }
     setIsFetchingLoc(true);
@@ -519,7 +545,7 @@ export default function App() {
     stopListening();
     stopAudioVisualization();
   };
-  const detectedScriptLang = citizenStatement ? detectLangFromScript(citizenStatement) : null;
+  const detectedScriptLang = useMemo(() => citizenStatement ? detectLangFromScript(citizenStatement) : null, [citizenStatement]);
   const renderResult = () => {
     if (!result) return null;
     const sev = getSeverityStyle(result.severity);
@@ -709,17 +735,64 @@ export default function App() {
     );
   };
   const renderLangPicker = () => (
-    <div style={{ position:"absolute", top:"110%", left:0, right:0, zIndex:200, background:"rgba(10,16,32,0.98)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:12, backdropFilter:"blur(20px)", boxShadow:"0 20px 40px rgba(0,0,0,0.6)" }}>
+    <div
+      style={{ position:"absolute", top:"110%", left:0, right:0, zIndex:1000, background:"rgba(10,16,32,0.98)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:12, backdropFilter:"blur(20px)", boxShadow:"0 20px 40px rgba(0,0,0,0.6)", pointerEvents:"all" }}
+      onMouseDown={e => e.stopPropagation()}
+    >
       <div style={{ fontSize:11, color:"#475569", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:10, padding:"0 4px" }}>{t(uiLang,"allLanguages")}</div>
-      <button className={`lang-option ${spokenLang === "AUTO" ? "active" : ""}`} style={{ width:"100%", marginBottom:8, background: spokenLang==="AUTO" ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.04)", borderColor: spokenLang==="AUTO" ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.2)" }} onClick={() => { setSpokenLang("AUTO"); setShowLangPicker(false); }}>
+      <button
+        className={`lang-option ${spokenLang === "AUTO" ? "active" : ""}`}
+        style={{ width:"100%", marginBottom:8, background: spokenLang==="AUTO" ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.04)", borderColor: spokenLang==="AUTO" ? "rgba(99,102,241,0.5)" : "rgba(99,102,241,0.2)" }}
+        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setSpokenLang("AUTO"); setShowLangPicker(false); }}
+      >
         <div style={{ fontWeight:700, color: spokenLang==="AUTO" ? "#818cf8" : "#94a3b8" }}>{t(uiLang,"autoDetectLabel")}</div>
         <div style={{ fontSize:10, color:"#475569" }}>{t(uiLang,"autoDetectSub")}</div>
       </button>
       <div className="lang-grid">
         {ALL_LANGS.map(l => (
-          <button key={l.code} className={`lang-option ${spokenLang === l.code ? "active" : ""}`} onClick={() => { setSpokenLang(l.code); setShowLangPicker(false); }}>
+          <button
+            key={l.code}
+            className={`lang-option ${spokenLang === l.code ? "active" : ""}`}
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setSpokenLang(l.code); setShowLangPicker(false); }}
+          >
             <div style={{ fontWeight:600, marginBottom:2 }}>{l.label}</div>
             <div style={{ fontSize:10, color:"#475569" }}>{l.code !== "English" ? l.code : ""}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  const renderDeptPicker = () => (
+    <div
+      style={{ position:"absolute", top:"110%", left:0, right:0, zIndex:1000, background:"rgba(10,16,32,0.98)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:12, backdropFilter:"blur(20px)", boxShadow:"0 20px 40px rgba(0,0,0,0.6)", pointerEvents:"all" }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div style={{ fontSize:11, color:"#475569", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:10, padding:"0 4px", display:"flex", alignItems:"center", gap:6 }}>
+        <Landmark size={12} color="#475569" /> {t(uiLang,"preAssignDept")}
+      </div>
+      {/* AI Decide — special option */}
+      <button
+        className={`lang-option ${department === "Auto" ? "active" : ""}`}
+        style={{ width:"100%", marginBottom:8, background: department==="Auto" ? "rgba(56,189,248,0.12)" : "rgba(56,189,248,0.04)", borderColor: department==="Auto" ? "rgba(56,189,248,0.5)" : "rgba(56,189,248,0.15)" }}
+        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setDepartment("Auto"); setIsDeptOpen(false); }}
+      >
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <Brain size={14} color={department==="Auto" ? "#38bdf8" : "#64748b"} />
+          <div>
+            <div style={{ fontWeight:700, color: department==="Auto" ? "#38bdf8" : "#94a3b8", fontSize:13 }}>{t(uiLang,"letAIDecide")}</div>
+            <div style={{ fontSize:10, color:"#475569" }}>Auto-route based on complaint content</div>
+          </div>
+        </div>
+      </button>
+      {/* Department list — 2-col grid matching lang-grid */}
+      <div className="lang-grid" style={{ gridTemplateColumns:"repeat(2,1fr)" }}>
+        {DEPT_KEYS.map(d => (
+          <button
+            key={d}
+            className={`lang-option ${department === d ? "active" : ""}`}
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setDepartment(d); setIsDeptOpen(false); }}
+          >
+            <div style={{ fontWeight:600, fontSize:12, lineHeight:1.4 }}>{d}</div>
           </button>
         ))}
       </div>
@@ -824,10 +897,8 @@ export default function App() {
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; } }
       `}</style>
       <div style={S.root}>
-        <div className="bg-layer bg-base" /><div className="bg-layer bg-triband" /><div className="bg-aurora" />
-        <div className="bg-orb bg-orb-1" /><div className="bg-orb bg-orb-2" /><div className="bg-orb bg-orb-3" />
-        <div className="bg-layer bg-grid" /><div className="bg-layer bg-depth" />
-        <DeptIconsField /><div className="bg-vignette" /><div className="bg-tribot" />
+        <StaticBackground />
+        <DeptIconsField />
         <div style={S.bgOverlay} />
         <div style={S.topBar} className="top-bar">
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1013,10 +1084,10 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div style={{ ...S.fieldGroup, ...S.fieldRow, animation:"fieldReveal 0.5s ease 0.15s both" }} className="field-row">
+              <div style={{ ...S.fieldGroup, ...S.fieldRow, animation:"fieldReveal 0.5s ease 0.15s both", position:"relative", zIndex:10 }} className="field-row">
                 <div style={S.fieldWrap}>
                   <label style={S.lbl}>{t(uiLang,"spokenLanguage")}</label>
-                  <div style={{ position:"relative" }} ref={langPickerRef}>
+                  <div style={{ position:"relative", zIndex:10 }} ref={langPickerRef}>
                     <button onClick={() => setShowLangPicker(p => !p)} aria-expanded={showLangPicker} aria-label="Select spoken language" style={{ ...S.inp, textAlign:"left", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%" }}>
                       <span>{spokenLang === "AUTO" ? <span style={{ color:"#818cf8", fontWeight:700 }}>{t(uiLang,"autoDetect")}{detectedScriptLang && detectedScriptLang !== "English" ? ` → ${detectedScriptLang}` : ""}</span> : ALL_LANGS.find(l => l.code === spokenLang)?.label || spokenLang}</span>
                       <span style={{ color:"#475569", fontSize:12 }}>{showLangPicker ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
@@ -1024,12 +1095,25 @@ export default function App() {
                     {showLangPicker && renderLangPicker()}
                   </div>
                 </div>
-                <div style={S.fieldWrap}>
+                <div style={{ ...S.fieldWrap, position:"relative", zIndex:9 }}>
                   <label style={S.lbl}>{t(uiLang,"preAssignDept")}</label>
-                  <select style={S.sel} value={department} onChange={e => setDepartment(e.target.value)}>
-                    <option value="Auto">{t(uiLang,"letAIDecide")}</option>
-                    {DEPT_KEYS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                  <div style={{ position:"relative", zIndex:9 }} ref={deptPickerRef}>
+                    <button
+                      onClick={() => setIsDeptOpen(p => !p)}
+                      aria-expanded={isDeptOpen}
+                      aria-label="Select department"
+                      style={{ ...S.inp, textAlign:"left", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%" }}
+                    >
+                      <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <Landmark size={15} color="#38bdf8" />
+                        <span style={{ color: department === "Auto" ? "#38bdf8" : "#e2e8f0", fontWeight: department === "Auto" ? 700 : 400 }}>
+                          {department === "Auto" ? t(uiLang,"letAIDecide") : department}
+                        </span>
+                      </span>
+                      <span style={{ color:"#475569", fontSize:12 }}>{isDeptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+                    </button>
+                    {isDeptOpen && renderDeptPicker()}
+                  </div>
                 </div>
               </div>
               {mode === "speak" && (
@@ -1087,7 +1171,7 @@ export default function App() {
                   )}
                 </div>
               )}
-              <div style={{ ...S.fieldGroup, animation:"fieldReveal 0.5s ease 0.25s both" }}>
+              <div style={{ ...S.fieldGroup, animation:"fieldReveal 0.5s ease 0.25s both", position:"relative", zIndex:1 }}>
                 <div style={{ fontSize:11, fontWeight:800, color:"#475569", letterSpacing:2, textTransform:"uppercase", marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ width:20, height:2, borderRadius:1, background:"linear-gradient(90deg, #22c55e, transparent)" }} />
                   Statement & Evidence
