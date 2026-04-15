@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, ".env") });
 const express = require("express");
 const cors    = require("cors");
 const crypto  = require("crypto");
@@ -38,11 +38,11 @@ if (missing.length) {
 }
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const hf   = new HfInference(process.env.HUGGINGFACE_TOKEN);
-const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || null;
-console.log("✅ L12 Kimi-K2-Instruct (Groq free tier) — replaces Claude slot");
-console.log("✅ L13 Qwen3-32B        (Groq free tier) — replaces Gemini slot");
-if (MISTRAL_API_KEY) console.log("✅ Mistral API loaded");
-else                 console.log("⚠️  MISTRAL_API_KEY not set — Mistral layer disabled");
+console.log("✅ L12 Kimi-K2-Instruct (Groq free tier)");
+console.log("✅ L13 Qwen3-32B        (Groq free tier)");
+console.log("✅ L6  Llama-4-Scout     (Groq free tier)");
+console.log("✅ L7  Llama-3.3-70B     (Groq free tier)");
+console.log("✅ L11 HuggingFace XLM-RoBERTa");
 const DB_PATH = path.join(__dirname, "janvaani.db");
 const db      = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
@@ -463,7 +463,6 @@ function detectFranc(text) {
 const GROQ_MODELS = [
     { id: "meta-llama/llama-4-scout-17b-16e-instruct", label: "L6-groq-llama4-scout", weight: 6 },
     { id: "llama-3.3-70b-versatile",                   label: "L7-groq-llama3.3-70b", weight: 6 },
-    { id: "llama-3.1-8b-instant",                      label: "L8-groq-llama3.1-8b",  weight: 4 },
 ];
 function buildLangPrompt(text) {
     return `Identify the PRIMARY language in this text. The text may be in ANY language worldwide, including code-mixed (multiple languages mixed together) and romanised/transliterated text.
@@ -508,11 +507,16 @@ function parseAIResponse(raw = "") {
     parsed.confidence = Math.min(100, Math.max(0, Number(parsed.confidence) || 68));
     return parsed;
 }
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  🤖 LLM CALL #1 — GROQ GENERIC MODEL (Language Detection)      ║
+// ║  Used for: Llama-4-Scout, Llama-3.3-70B                         ║
+// ║  Provider: Groq (free tier)                                     ║
+// ╚══════════════════════════════════════════════════════════════════╝
 async function detectGroqModel(modelId, label, weight, text, delayMs = 0) {
     if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
     try {
         const res = await withTimeout(
-            groq.chat.completions.create({
+            groq.chat.completions.create({  // <--- 🔥 LLM CALL: Groq API
                 model: modelId, response_format: { type: "json_object" },
                 temperature: 0.05, max_tokens: 120,
                 messages: [
@@ -530,6 +534,7 @@ async function detectGroqModel(modelId, label, weight, text, delayMs = 0) {
     } catch (e) { console.log(`    ${label} ❌ ${e.message.slice(0, 70)}`); }
     return null;
 }
+// ╚══════════════════════════════════════════════════════════════════╝
 const HF_LANG_MAP = {
     hi:"Hindi",te:"Telugu",ta:"Tamil",kn:"Kannada",ml:"Malayalam",
     bn:"Bengali",gu:"Gujarati",pa:"Punjabi",or:"Odia",ur:"Urdu",mr:"Marathi",
@@ -552,10 +557,15 @@ const HF_LANG_MAP = {
     et:"Estonian",lv:"Latvian",lt:"Lithuanian",
     sw:"Hindi",so:"Hindi",ha:"Hindi",zu:"Hindi",
 };
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  🤖 LLM CALL #2 — HUGGINGFACE XLM-RoBERTa (Language Detection) ║
+// ║  Model: papluca/xlm-roberta-base-language-detection             ║
+// ║  Provider: HuggingFace Inference API  |  Weight: 3              ║
+// ╚══════════════════════════════════════════════════════════════════╝
 async function detectHuggingFace(text) {
     try {
         const result = await withTimeout(
-            hf.textClassification({ model: "papluca/xlm-roberta-base-language-detection", inputs: text.slice(0, 256) }),
+            hf.textClassification({ model: "papluca/xlm-roberta-base-language-detection", inputs: text.slice(0, 256) }),  // <--- 🔥 LLM CALL: HuggingFace API
             12000, "HuggingFace"
         );
         const top  = Array.isArray(result) ? result[0] : result;
@@ -569,10 +579,16 @@ async function detectHuggingFace(text) {
     } catch (e) { console.log(`    HuggingFace ❌ ${e.message.slice(0, 70)}`); }
     return null;
 }
+// ╚══════════════════════════════════════════════════════════════════╝
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  🤖 LLM CALL #3 — KIMI-K2-INSTRUCT (Language Detection)        ║
+// ║  Model: moonshotai/kimi-k2-instruct via Groq                   ║
+// ║  Provider: Groq (free tier)  |  Weight: 9 (HIGHEST)            ║
+// ╚══════════════════════════════════════════════════════════════════╝
 async function detectClaude(text) {
     try {
         const res = await withTimeout(
-            groq.chat.completions.create({
+            groq.chat.completions.create({  // <--- 🔥 LLM CALL: Kimi-K2 via Groq
                 model: "moonshotai/kimi-k2-instruct",
                 response_format: { type: "json_object" },
                 temperature: 0.05,
@@ -593,10 +609,16 @@ async function detectClaude(text) {
     } catch (e) { console.log(`    L12 Kimi-K2     ❌ ${e.message.slice(0, 70)}`); }
     return null;
 }
+// ╚══════════════════════════════════════════════════════════════════╝
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  🤖 LLM CALL #4 — QWEN3-32B (Language Detection)               ║
+// ║  Model: qwen/qwen3-32b via Groq                                ║
+// ║  Provider: Groq (free tier)  |  Weight: 8                      ║
+// ╚══════════════════════════════════════════════════════════════════╝
 async function detectGemini(text) {
     try {
         const res = await withTimeout(
-            groq.chat.completions.create({
+            groq.chat.completions.create({  // <--- 🔥 LLM CALL: Qwen3-32B via Groq
                 model: "qwen/qwen3-32b",
                 response_format: { type: "json_object" },
                 temperature: 0.05,
@@ -617,50 +639,7 @@ async function detectGemini(text) {
     } catch (e) { console.log(`    L13 Qwen3-32b   ❌ ${e.message.slice(0, 70)}`); }
     return null;
 }
-async function detectMistral(text) {
-    if (!MISTRAL_API_KEY) return null;
-    try {
-        const body = JSON.stringify({
-            model: "mistral-large-latest",
-            temperature: 0.05,
-            max_tokens: 150,
-            response_format: { type: "json_object" },
-            messages: [
-                { role: "system", content: "You are a multilingual language identification expert. Output only valid JSON." },
-                { role: "user",   content: buildLangPrompt(text) },
-            ],
-        });
-        const result = await withTimeout(new Promise((resolve, reject) => {
-            const req = https.request({
-                hostname: "api.mistral.ai",
-                path: "/v1/chat/completions",
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${MISTRAL_API_KEY}`,
-                    "Content-Length": Buffer.byteLength(body),
-                },
-            }, (res) => {
-                let raw = "";
-                res.on("data", c => raw += c);
-                res.on("end", () => {
-                    try { resolve(JSON.parse(raw)); }
-                    catch { reject(new Error("JSON parse failed")); }
-                });
-            });
-            req.on("error", reject);
-            req.write(body);
-            req.end();
-        }), 15000, "Mistral");
-        const raw = result.choices?.[0]?.message?.content || "";
-        const data = parseAIResponse(raw);
-        if (data) {
-            console.log(`    L14 Mistral     ✅ ${data.language} (${data.confidence}%)`);
-            return { ...data, method: "L14-mistral-large", weight: 7 };
-        }
-    } catch (e) { console.log(`    L14 Mistral     ❌ ${e.message.slice(0, 70)}`); }
-    return null;
-}
+// ╚══════════════════════════════════════════════════════════════════╝
 const DEVANAGARI_DISAMBIG = {
     Marathi:  /\b(आहे|नाही|आणि|करणे|होते|मला|तुम्ही|आम्ही|द्यायला|घ्यायला|काही|कसे|कुठे|आपल्याला|झाले|खूप|लवकर|सोडवा|आमच्या|तुमच्या|पाण्याची|माझा|माझी|माझे|तुमचा|तुमची|भागात|हवे|हवी|नको|चांगले|केले|केली|बघा|सांगा|करा|घ्या|येतो|जातो|बोला|विचारा|कोण|कधी|कसा|म्हणजे|आम्हाला|तुम्हाला|त्याला|तिला|आमचा|आमची|तुमचे)\b/,
     Sanskrit: /\b(अस्ति|नास्ति|भवति|कुर्यात्|ददाति|गच्छति|आगच्छति|तत्र|अत्र|एव|यथा|तथा|इति)\b/,
@@ -773,7 +752,6 @@ async function detectLanguage(text) {
     activeModels.push(...groqPromises);
     activeModels.push(detectClaude(text));
     activeModels.push(detectGemini(text));
-    if (MISTRAL_API_KEY) activeModels.push(detectMistral(text));
     const aiResults = await Promise.all(activeModels);
     for (const r of aiResults) { if (r) votes.push(r); }
     const hfResult = aiResults[0];
@@ -822,9 +800,9 @@ async function detectLanguage(text) {
     finalConf = Math.min(99, finalConf);
     if (codeMix.isCodeMixed && sorted.length > 1) {
         finalConf = Math.max(finalConf - 2, Math.round(finalConf * 0.98));
-        const aiVotes = votes.filter(v => v.method && /^L(6|7|8|11|12|13|14)/.test(v.method));
+        const aiVotes = votes.filter(v => v.method && /^L(6|7|11|12|13)/.test(v.method));
         const aiWinVotes = aiVotes.filter(v => v.language === winner).length;
-        if (aiVotes.length >= 5 && aiWinVotes / aiVotes.length >= 0.75) {
+        if (aiVotes.length >= 4 && aiWinVotes / aiVotes.length >= 0.75) {
             finalConf = Math.max(finalConf, 95);
         }
     }
@@ -931,10 +909,15 @@ Return JSON:
   "suggestedFollowUpDate": "<ISO date 7 days from now>",
   "citizenActionNeeded": "<any document/info citizen must provide or None>"
 }`;
+    // ╔══════════════════════════════════════════════════════════════════╗
+    // ║  🤖 LLM CALL #6 — KIMI-K2 (Grievance Synthesis — PRIMARY)      ║
+    // ║  Model: moonshotai/kimi-k2-instruct via Groq                    ║
+    // ║  Purpose: Classify dept, severity, generate formal grievance    ║
+    // ╚══════════════════════════════════════════════════════════════════╝
     try {
         console.log(`  🧠 Synthesis: trying Kimi-K2...`);
         const res = await withTimeout(
-            groq.chat.completions.create({
+            groq.chat.completions.create({  // <--- 🔥 LLM CALL: Kimi-K2 Synthesis
                 model: "moonshotai/kimi-k2-instruct",
                 response_format: { type: "json_object" },
                 temperature: 0.2,
@@ -952,10 +935,15 @@ Return JSON:
         parsed._synthesisModel = "kimi-k2-instruct";
         return parsed;
     } catch (e) { console.log(`  🧠 Synthesis: Kimi-K2 ❌ ${e.message.slice(0, 60)} — falling back`); }
+    // ╔══════════════════════════════════════════════════════════════════╗
+    // ║  🤖 LLM CALL #7 — QWEN3-32B (Grievance Synthesis — FALLBACK 1) ║
+    // ║  Model: qwen/qwen3-32b via Groq                                ║
+    // ║  Purpose: Fallback if Kimi-K2 fails                            ║
+    // ╚══════════════════════════════════════════════════════════════════╝
     try {
         console.log(`  💡 Synthesis: trying Qwen3-32B...`);
         const res = await withTimeout(
-            groq.chat.completions.create({
+            groq.chat.completions.create({  // <--- 🔥 LLM CALL: Qwen3-32B Synthesis
                 model: "qwen/qwen3-32b",
                 response_format: { type: "json_object" },
                 temperature: 0.2,
@@ -973,8 +961,13 @@ Return JSON:
         parsed._synthesisModel = "qwen3-32b";
         return parsed;
     } catch (e) { console.log(`  💡 Synthesis: Qwen3-32B ❌ ${e.message.slice(0, 60)} — falling back`); }
+    // ╔══════════════════════════════════════════════════════════════════╗
+    // ║  🤖 LLM CALL #8 — LLAMA-4-SCOUT (Grievance Synthesis — FINAL)  ║
+    // ║  Model: meta-llama/llama-4-scout-17b-16e-instruct via Groq      ║
+    // ║  Purpose: Last-resort fallback if both Kimi & Qwen fail         ║
+    // ╚══════════════════════════════════════════════════════════════════╝
     console.log(`  ⚡ Synthesis: using Groq Llama-4-Scout...`);
-    const res = await groq.chat.completions.create({
+    const res = await groq.chat.completions.create({  // <--- 🔥 LLM CALL: Llama-4-Scout Synthesis
         model: "meta-llama/llama-4-scout-17b-16e-instruct",
         response_format: { type: "json_object" },
         temperature: 0.2,
@@ -988,6 +981,7 @@ Return JSON:
     parsed._synthesisModel = "groq-llama4-scout";
     return parsed;
 }
+// ╚══════════════════════════════════════════════════════════════════╝
 app.post("/analyze", async (req, res) => {
     const { text, location, citizenName, citizenPhone, department: preDept, evidence } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: "No grievance text provided." });
@@ -1422,18 +1416,16 @@ app.get("/health", (req, res) => {
         database    : { path: DB_PATH, totalTickets: dbStats.total, sizeBytes: dbSize },
         llmApis     : {
             groq    : { active: true,  models: [...GROQ_MODELS.map(m => m.id), "moonshotai/kimi-k2-instruct", "qwen/qwen3-32b"] },
-            mistral : { active: !!MISTRAL_API_KEY, model: "mistral-large-latest" },
             huggingFace: { active: true, model: "papluca/xlm-roberta-base-language-detection" },
         },
         synthesisModel: "kimi-k2-instruct → qwen3-32b → llama-4-scout (all free via Groq)",
         departments : Object.keys(DEPARTMENT_REGISTRY).length,
         langLayers  : [
             "L1-unicode", "L3-ngram(hint)", "L4-franc(hint)", "L5-word-analysis(hint)",
-            "L6-groq-llama4-scout", "L7-groq-llama3.3-70b", "L8-groq-llama3.1-8b",
+            "L6-groq-llama4-scout", "L7-groq-llama3.3-70b",
             "L11-hf-xlm-roberta",
             "L12-kimi-k2-instruct",
             "L13-qwen3-32b",
-            ...(MISTRAL_API_KEY ? ["L14-mistral-large"] : []),
             "code-mix-detector",
         ],
         weightHierarchy: "LLMs (6-9) >> Word Analysis (2) >> N-gram/Franc (1)",
@@ -1614,18 +1606,15 @@ app.listen(PORT, "0.0.0.0", () => {
     const count = db.prepare("SELECT COUNT(*) as c FROM tickets").get().c;
     const langCount = Object.keys(WORD_DICT).length;
     const scriptCount = UNICODE_RANGES.length;
-    const mistral = process.env.MISTRAL_API_KEY ? "active" : "no key";
     console.log(`
   JanVaani v14
   ─────────────────────────────────────────
   http://localhost:${PORT}  │  ${count} tickets  │  ${langCount} langs  │  ${scriptCount} scripts
-  LLMs                               Weight
+  LLMs (5 agents)                    Weight
    Kimi-K2-Instruct   Groq FREE        9
    Qwen3-32B          Groq FREE        8
-   Mistral Large      ${mistral.padEnd(14)}   7
    Llama-4-Scout      Groq FREE        6
    Llama-3.3-70B      Groq FREE        6
-   Llama-3.1-8B       Groq FREE        4
    XLM-RoBERTa        HuggingFace      3
   Heuristics           Unicode w:10 │ Words w:2-6 │ N-gram w:1 │ Franc w:1
   Synthesis            Kimi-K2 → Qwen3 → Llama-4 (free cascade)
